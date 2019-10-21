@@ -6,7 +6,7 @@ namespace Microsoft.Graph.PowerShell.Authentication.Helpers
     using Microsoft.Graph.Auth;
     using Microsoft.Graph.PowerShell.Authentication.Models;
     using Microsoft.Identity.Client;
-    using Microsoft.Identity.Client.Extensions.Msal;
+    //using Microsoft.Identity.Client.Extensions.Msal;
     using System;
     using System.IO;
     using System.Linq;
@@ -14,7 +14,6 @@ namespace Microsoft.Graph.PowerShell.Authentication.Helpers
 
     internal static class AuthenticationHelpers
     {
-        private static readonly object FileLock = new object();
         private static readonly string UserCacheFileName = "userTokenCache.bin3";
         private static readonly string AppCacheFileName = "appTokenCache.bin3";
 
@@ -32,14 +31,9 @@ namespace Microsoft.Graph.PowerShell.Authentication.Helpers
                    .WithTenantId(authConfig.TenantId)
                    .Build();
 
-                StorageCreationProperties storageCacheProperty = new StorageCreationPropertiesBuilder(UserCacheFileName, CacheFilePath, authConfig.ClientId)
-                    .Build();
+                TokenCacheHelper tokenCacheHelper = TokenCacheHelper.Create(CacheFilePath, UserCacheFileName);
+                tokenCacheHelper.RegisterCache(publicClientApp.UserTokenCache);
 
-                MsalCacheHelper msalCacheHelper = MsalCacheHelper.CreateAsync(storageCacheProperty)
-                    .GetAwaiter()
-                    .GetResult();
-
-                msalCacheHelper.RegisterCache(publicClientApp.UserTokenCache);
                 return new DeviceCodeProvider(publicClientApp, authConfig.Scopes, async (result) => {
                     await Console.Out.WriteLineAsync(result.Message);
                 });
@@ -52,42 +46,24 @@ namespace Microsoft.Graph.PowerShell.Authentication.Helpers
                 .WithCertificate(GetCertificate(authConfig.CertificateName))
                 .Build();
 
-                ConfigureTokenCache(confidentialClientApp.AppTokenCache, CacheFilePath + AppCacheFileName);
+                TokenCacheHelper tokenCacheHelper = TokenCacheHelper.Create(CacheFilePath, AppCacheFileName);
+                tokenCacheHelper.RegisterCache(confidentialClientApp.AppTokenCache);
                 return new ClientCredentialProvider(confidentialClientApp);
             }
         }
 
         internal static void Logout(AuthConfig authConfig)
         {
-            lock (FileLock)
+            if (authConfig.AuthType == AuthenticationType.Delegated)
             {
-                if (authConfig.AuthType == AuthenticationType.Delegated)
-                    File.Delete($"{CacheFilePath}\\{UserCacheFileName}");
-                else
-                    File.Delete($"{CacheFilePath}\\{AppCacheFileName}");
+                TokenCacheHelper tokenCacheHelper = TokenCacheHelper.Create(CacheFilePath, UserCacheFileName);
+                tokenCacheHelper.Logout();
             }
-        }
-
-        private static void ConfigureTokenCache(ITokenCache tokenCache, string tokenCachePath)
-        {
-            tokenCache.SetBeforeAccess((TokenCacheNotificationArgs args) => {
-                lock (FileLock)
-                {
-                    args.TokenCache.DeserializeMsalV3(File.Exists(tokenCachePath)
-                        ? File.ReadAllBytes(tokenCachePath)
-                        : null);
-                }
-            });
-
-            tokenCache.SetAfterAccess((TokenCacheNotificationArgs args) => {
-                lock (FileLock)
-                {
-                    if (args.HasStateChanged)
-                    {
-                        File.WriteAllBytes(tokenCachePath, args.TokenCache.SerializeMsalV3());
-                    }
-                }
-            });
+            else
+            {
+                TokenCacheHelper tokenCacheHelper = TokenCacheHelper.Create(CacheFilePath, AppCacheFileName);
+                tokenCacheHelper.Logout();
+            }
         }
 
         /// <summary>

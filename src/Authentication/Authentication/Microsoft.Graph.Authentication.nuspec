@@ -25,6 +25,7 @@
     <file src="bin/Microsoft.Graph.Auth.dll" target="bin" />
     <file src="bin/Microsoft.Graph.Core.dll" target="bin" />
     <file src="bin/Microsoft.Identity.Client.dll" target="bin" />
-    <file src="bin/Microsoft.Identity.Client.Extensions.Msal.dll" target="bin" />
+    <file src="bin/System.Security.Cryptography.ProtectedData.dll" target="bin" />
+    <!--<file src="bin/Microsoft.Identity.Client.Extensions.Msal.dll" target="bin" />-->
   </files>
 </package>
